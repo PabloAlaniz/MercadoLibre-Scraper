@@ -40,7 +40,7 @@ class ScraperManager:
 
     def get_product_list(self, product_name):
         domain = 'ar'  # Ejemplo de dominio
-        user_scraping_limit = 1000  # Ejemplo de límite de scraping
+        user_scraping_limit = 100  # Ejemplo de límite de scraping
 
         product_data_list = self.scraper.scrape_product_list(domain, product_name, user_scraping_limit)
 

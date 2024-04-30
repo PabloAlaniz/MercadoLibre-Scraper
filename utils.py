@@ -19,6 +19,11 @@ def format_price(df):
     return df
 
 
+def clean_km(km_str):
+    # Elimina ' km' y reemplaza los puntos por nada, luego convierte a entero
+    return int(km_str.replace(' km', '').replace('.', ''))
+
+
 def format_price_for_display(price):
     try:
         # Intentar convertir el precio a un número flotante y luego aplicar el formato

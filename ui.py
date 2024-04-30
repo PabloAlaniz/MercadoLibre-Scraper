@@ -2,6 +2,7 @@ import dash_bootstrap_components as dbc
 from dash import html, dash_table
 from dash import dcc
 import plotly.express as px
+from utils import clean_km
 
 
 def load_index_html():
@@ -51,9 +52,9 @@ def create_layout():
     return dcc.Loading(layout, type="circle")
 
 
-
-
 def create_scatter_plot(data):
+
+    data['km'] = data['km'].apply(clean_km)
     fig = px.scatter(data, x='km', y='price_usd', color='year',
                      labels={"km": "Kilómetros", "price_usd": "Precio (USD)", "year": "Año"},
                      title="Relación entre Precio, Kilómetros y Año del Auto")

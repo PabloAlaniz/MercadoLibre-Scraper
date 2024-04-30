@@ -30,7 +30,7 @@ python main.py
 
 Esto iniciara una instancia de Dash en el puerto 5002. Para acceder a la interfaz web, abra un navegador y vaya a la dirección http://localhost:5002
 
-<p align="center"><img src="docs/home-v1.png"/></br>Home</p>
+<p align="center"><img src="docs/home-v2.png"/></br>Home</p>
 
 Se puede elegir un producto en el input y al clickear en 'Buscar' se ejecuta el scraper.
 

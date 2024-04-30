@@ -96,7 +96,7 @@ class MercadoLibreScraper(Scraper):
 
         return data
 
-    def scrape_product_list(self, domain, product_name, user_scraping_limit=100):
+    def scrape_product_list(self, domain, product_name, user_scraping_limit):
         cleaned_name = format_filename(product_name)
         base_url = self.base_url.format(domain=domain)
 
@@ -108,7 +108,7 @@ class MercadoLibreScraper(Scraper):
         products_per_page = len(soup.find_all('li', class_='ui-search-layout__item'))
         estimated_total_pages = total_results // products_per_page + (total_results % products_per_page > 0)
 
-        scraping_limit = min(total_results, user_scraping_limit, 100)
+        scraping_limit = min(total_results, user_scraping_limit)
         logger.info(f"Se obtuvieron {total_results} resultados. Se limitará el scraping a {scraping_limit} resultados.")
 
         all_data = []
