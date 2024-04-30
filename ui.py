@@ -1,6 +1,7 @@
 import dash_bootstrap_components as dbc
 from dash import html, dash_table
 from dash import dcc
+import plotly.express as px
 
 
 def load_index_html():
@@ -27,12 +28,12 @@ def create_layout():
                     dash_table.DataTable(
                         id='table-detailed',
                         columns=[],
-                        # Habilita la ordenación para cada columna
                         data=[],
-                        filter_action='native',  # Habilita el filtrado nativo
-                        sort_action='native',  # Habilita la ordenación nativa
-                        sort_mode='multi'  # Permite la ordenación multi-columna
-                    )
+                        filter_action='native',
+                        sort_action='native',
+                        sort_mode='multi'
+                    ),
+                    html.Div(id='scatter-plot-container')
                 ], width=12),
             ]),
             html.Script(src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.3/socket.io.js"),
@@ -48,3 +49,12 @@ def create_layout():
         fluid=True,
     )
     return dcc.Loading(layout, type="circle")
+
+
+
+
+def create_scatter_plot(data):
+    fig = px.scatter(data, x='km', y='price_usd', color='year',
+                     labels={"km": "Kilómetros", "price_usd": "Precio (USD)", "year": "Año"},
+                     title="Relación entre Precio, Kilómetros y Año del Auto")
+    return dcc.Graph(figure=fig)

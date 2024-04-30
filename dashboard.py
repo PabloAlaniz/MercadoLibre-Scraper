@@ -6,6 +6,7 @@ from mercadolibre_scraper import MercadoLibreScraper
 from scraper import ScraperManager
 from callbacks import register_callbacks
 
+
 class Dashboard:
     def __init__(self):
         self.app = dash.Dash(__name__, server=server, external_stylesheets=EXTERNAL_STYLESHEETS)

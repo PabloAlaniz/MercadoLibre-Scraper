@@ -44,7 +44,21 @@ def register_callbacks(app, scraper_manager, data_manager):
             table_data = json.loads(json_data)
             urls = [extract_url_from_markdown(row['post_link']) for row in table_data]
             products = scraper_manager.get_products_details_thread(urls)
-            columns = data_manager.generate_columns(products)
+            products, columns = data_manager.process_and_convert_products(products)
             return products, columns, {'display': 'none'}
         else:
             return [], [], {'display': 'block'}
+
+    @app.callback(
+        Output('scatter-plot-container', 'children'),
+        [Input('table-detailed', 'data')]
+    )
+    def update_scatter_plot(data):
+        # Suponiendo que tus datos tienen las columnas 'price_usd', 'km', y 'year'
+        if data:
+            # Convertir los datos a DataFrame si es necesario o usar directamente si ya es un DataFrame
+            df = pd.DataFrame(data)
+            # Crear el gráfico de dispersión con los datos actualizados
+            scatter_plot = create_scatter_plot(df)
+            return scatter_plot
+        return None

@@ -15,5 +15,5 @@ SERVER_CONFIG = {
 SCRAPER_CONFIG = {
     'base_url': 'https://listado.mercadolibre.com.{domain}/',
     'page_increment': 50,
-    'max_pages': 10
+    'max_pages': 100
 }

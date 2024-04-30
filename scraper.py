@@ -10,10 +10,10 @@ class Scraper:
 
     def get_page_content(self, url):
         try:
-            logger.debug(f"Iniciando la solicitud de la página: {url}")
+            #logger.debug(f"Iniciando la solicitud de la página: {url}")
             response = requests.get(url)
             response.raise_for_status()
-            logger.info(f"Solicitud completada exitosamente para la página: {url}")
+            #logger.info(f"Solicitud completada exitosamente para la página: {url}")
             return BeautifulSoup(response.text, 'html.parser')
         except requests.RequestException as e:
             logger.error(f"Error al obtener la página {url}: {e}")
