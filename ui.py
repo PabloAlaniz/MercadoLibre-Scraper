@@ -52,10 +52,13 @@ def create_layout():
     return dcc.Loading(layout, type="circle")
 
 
-def create_scatter_plot(data):
+def create_scatter_plot(data, x_col, y_col, color_col, labels, title):
+    if x_col not in data.columns or y_col not in data.columns or color_col not in data.columns:
+        return html.Div("Una o más columnas especificadas no están presentes en los datos.", style={'color': 'red'})
 
-    data['km'] = data['km'].apply(clean_km)
-    fig = px.scatter(data, x='km', y='price_usd', color='year',
-                     labels={"km": "Kilómetros", "price_usd": "Precio (USD)", "year": "Año"},
-                     title="Relación entre Precio, Kilómetros y Año del Auto")
+    if x_col == 'km':
+        data['km'] = data['km'].apply(clean_km)
+
+    fig = px.scatter(data, x=x_col, y=y_col, color=color_col,
+                     labels=labels, title=title)
     return dcc.Graph(figure=fig)

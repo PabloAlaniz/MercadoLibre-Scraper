@@ -56,11 +56,14 @@ def register_callbacks(app, scraper_manager, data_manager):
         [Input('table-detailed', 'data')]
     )
     def update_scatter_plot(data):
-        # Suponiendo que tus datos tienen las columnas 'price_usd', 'km', y 'year'
         if data:
-            # Convertir los datos a DataFrame si es necesario o usar directamente si ya es un DataFrame
             df = pd.DataFrame(data)
-            # Crear el gráfico de dispersión con los datos actualizados
-            scatter_plot = ui.create_scatter_plot(df)
+            scatter_plot = ui.create_scatter_plot(
+                df,
+                x_col='km',
+                y_col='price_usd',
+                color_col='year',
+                labels={"km": "Kilómetros", "price_usd": "Precio (USD)", "year": "Año"},
+                title="Relación entre Precio, Kilómetros y Año del Auto")
             return scatter_plot
         return None

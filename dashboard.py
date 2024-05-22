@@ -2,8 +2,8 @@ import dash
 from config import socketio, server, SERVER_CONFIG, EXTERNAL_STYLESHEETS
 from ui import load_index_html, create_layout
 from data_manager import DataManager
-from mercadolibre_scraper import MercadoLibreScraper
-from scraper import ScraperManager
+from scrapers.mercadolibre.mercadolibre_scraper import MercadoLibreScraper
+from scraper_manager import ScraperManager
 from callbacks import register_callbacks
 
 

@@ -1,10 +1,17 @@
-from bs4 import BeautifulSoup
 from config import socketio, SCRAPER_CONFIG, DATA_DIRECTORY, CSV_SEPARATOR
-from scraper import Scraper
+from scrapers.base_scraper import Scraper
 from utils import format_filename, format_link_to_markdown
 from log_config import get_logger
-
 logger = get_logger(__name__)
+
+
+def detect_category(soup):
+    if soup.find('span', class_='ui-pdp-subtitle') and ' km ' in soup.text:
+        return 'car'
+    elif soup.find('span', string=lambda text: text and "m²" in text):
+        return 'property'
+    else:
+        return 'others'
 
 
 class MercadoLibreScraper(Scraper):
@@ -21,17 +28,6 @@ class MercadoLibreScraper(Scraper):
         if price_element and isinstance(price_element.text, str):
             return price_element.text.replace('.', '')
         return None
-
-    def extract_product_year_km_and_publication_date(self, soup):
-        subtitle_element = soup.find('span', class_='ui-pdp-subtitle')
-        if subtitle_element:
-            parts = subtitle_element.text.split('·')
-            year_km_part = parts[0].strip() if len(parts) > 0 else ""
-            year, km = year_km_part.split('|') if '|' in year_km_part else (None, None)
-            publication_date = parts[1].strip() if len(parts) > 1 else None
-
-            return year.strip() if year else None, km.strip() if km else None, publication_date
-        return None, None, None
 
     def extract_post_data(self, post):
         title_element = post.find('h2')
@@ -51,7 +47,7 @@ class MercadoLibreScraper(Scraper):
         results_element = soup.find('span', class_='ui-search-search-result__quantity-results')
         if results_element:
             return int(results_element.text.split()[0].replace('.', '').replace(',', ''))
-        return 0  # o cualquier valor predeterminado
+        return 0
 
     def scrape_page_results(self, url):
         logger.debug(f"Comenzando scrape_page_results para URL: {url}")
@@ -74,37 +70,76 @@ class MercadoLibreScraper(Scraper):
         return page_data
 
     def scrape_product_details(self, soup):
-        title = soup.find('h1', class_='ui-pdp-title')
-        price_simbol = soup.find('span', class_='andes-money-amount__currency-symbol')
-        price = soup.find('span', class_='andes-money-amount__fraction')
-        year, km, publication_date = self.extract_product_year_km_and_publication_date(soup)
-        link = soup.find('link', rel='canonical')
-        author = soup.find('div', class_='ui-pdp-seller-validated')
+        category = detect_category(soup)
 
-        envio_element = soup.find('span', string=lambda text: text and "Llega" in text)
+        if category == 'car':
+            from scrapers.mercadolibre.car_scraper import CarScraper
+            scraper = CarScraper()
+        elif category == 'property':
+            from scrapers.mercadolibre.property_scraper import PropertyScraper
+            scraper = PropertyScraper()
+        else:
+            scraper = MercadoLibreScraper()
 
-        data = {
-            'title': title.text if title else None,
-            'envio': envio_element.text if envio_element else None,
-            'price': f"{price_simbol.text} {price.text}" if price_simbol and price else None,
-            'year': year,
-            'km': km,
-            'publication_date': publication_date,
-            'author': author.text if author else None,
-            'link': format_link_to_markdown(link['href']) if link else None,
+        base_data = {
+            'title': self.extract_title(soup),
+            'price': self.extract_price(soup),
+            'publication_date': self.extract_publication_date(soup),
+            'author': self.extract_author(soup),
+            'link': self.extract_link(soup),
+            'envio': self.extract_envio(soup),
         }
 
-        return data
+        specific_data = scraper.scrape_specific_details(soup)
+        base_data.update(specific_data)
+
+        return base_data
+
+    def scrape_specific_details(self, soup):
+        return {}
+
+    @staticmethod
+    def extract_title(soup):
+        title = soup.find('h1', class_='ui-pdp-title')
+        return title.text if title else None
+
+    @staticmethod
+    def extract_price(soup):
+        price_simbol = soup.find('span', class_='andes-money-amount__currency-symbol')
+        price = soup.find('span', class_='andes-money-amount__fraction')
+        return f"{price_simbol.text} {price.text}" if price_simbol and price else None
+
+    @staticmethod
+    def extract_author(soup):
+        author = soup.find('div', class_='ui-pdp-seller-validated')
+        return author.text if author else None
+
+    @staticmethod
+    def extract_link(soup):
+        link = soup.find('link', rel='canonical')
+        return format_link_to_markdown(link['href']) if link else None
+
+    @staticmethod
+    def extract_publication_date(soup):
+        subtitle_element = soup.find('span', class_='ui-pdp-subtitle')
+        if subtitle_element:
+            parts = subtitle_element.text.split('·')
+            publication_date = parts[1].strip() if len(parts) > 1 else None
+            return publication_date
+        return None
+
+    @staticmethod
+    def extract_envio(soup):
+        envio_element = soup.find('span', string=lambda text: text and "Llega" in text)
+        return envio_element.text if envio_element else None
 
     def scrape_product_list(self, domain, product_name, user_scraping_limit):
         cleaned_name = format_filename(product_name)
         base_url = self.base_url.format(domain=domain)
 
-        # Obtener el contenido de la primera página para extraer el número total de resultados
         soup = self.get_page_content(base_url + cleaned_name)
         total_results = self.get_total_results(soup)
 
-        # Estimar la cantidad de productos por página
         products_per_page = len(soup.find_all('li', class_='ui-search-layout__item'))
         estimated_total_pages = total_results // products_per_page + (total_results % products_per_page > 0)
 
@@ -127,8 +162,6 @@ class MercadoLibreScraper(Scraper):
             all_data.extend(scraped_page_data)
             logger.info(f"Scraping de página {i + 1} de {estimated_total_pages} completado")
 
-            # Emitir el progreso
             socketio.emit('scrape_status', {'progress': i, 'total': estimated_total_pages})
 
         return all_data
-
