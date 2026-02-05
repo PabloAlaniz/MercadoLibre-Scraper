@@ -1,8 +1,8 @@
-requests==2.31.0
-beautifulsoup4==4.9.3
-pandas==1.2.3
-tqdm~=4.66.1
-dash~=2.14.0
-Flask~=2.2.5
-flask-socketio~=5.3.6
-dash-bootstrap-components~=1.5.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pandas>=2.0.0
+tqdm>=4.66.1
+dash>=2.14.0
+Flask>=3.0.0
+flask-socketio>=5.3.6
+dash-bootstrap-components>=1.5.0

@@ -36,5 +36,10 @@ jobs:
       - name: Test with pytest
         run: |
           pip install pytest
-          pytest -v || echo "No tests found or tests failed"
-        continue-on-error: true
+          # Only run pytest if tests directory exists
+          if [ -d "tests" ]; then
+            pytest -v
+          else
+            echo "No tests directory found - skipping tests"
+            exit 0
+          fi
