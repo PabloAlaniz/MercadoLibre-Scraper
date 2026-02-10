@@ -1,5 +1,10 @@
 # MercadoLibre Scraper 🛒
 
+[![CI](https://github.com/PabloAlaniz/MercadoLibre-Scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloAlaniz/MercadoLibre-Scraper/actions/workflows/ci.yml)
+[![Python 3.x](https://img.shields.io/badge/python-3.x-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Web scraping tool for MercadoLibre with dual interface: interactive dashboard (Dash) and CLI. Supports 18 Latin American countries with specialized scrapers for products, cars, and real estate.
 
 ## ✨ Features
@@ -228,6 +233,81 @@ pytest tests/
 - **Rate limiting:** Be respectful of MercadoLibre's servers. Use reasonable limits.
 - **Robots.txt:** This scraper is for educational purposes. Check MercadoLibre's terms of service before large-scale scraping.
 - **Data freshness:** MercadoLibre data changes frequently. For real-time accuracy, scrape regularly.
+
+## 🔧 Troubleshooting
+
+### Dashboard won't start
+**Problem:** `Address already in use` error when running `python main.py`
+
+**Solution:**
+```bash
+# Find and kill the process using port 5003
+lsof -ti:5003 | xargs kill -9
+
+# Or change the port in config.py
+SERVER_CONFIG = {"port": 5004}
+```
+
+### No results returned
+**Problem:** Scraper returns empty list or 0 products
+
+**Possible causes:**
+1. **MercadoLibre changed their HTML structure** → Update CSS selectors in scrapers
+2. **Rate limiting/blocking** → Add delays between requests, rotate user agents
+3. **Invalid country domain** → Verify domain code exists in supported countries list
+4. **Network issues** → Check internet connection, try a different network
+
+**Debug steps:**
+```bash
+# Enable debug logging
+export LOG_LEVEL=DEBUG
+python cli-scraper.py
+```
+
+### CSV export fails
+**Problem:** `PermissionError` or `FileNotFoundError` when exporting
+
+**Solution:**
+```bash
+# Create data directory manually
+mkdir -p data
+
+# Check write permissions
+chmod 755 data/
+```
+
+### ModuleNotFoundError
+**Problem:** `ModuleNotFoundError: No module named 'dash'` (or other dependencies)
+
+**Solution:**
+```bash
+# Reinstall all dependencies
+pip install -r requirements.txt --upgrade
+
+# Or install individual missing packages
+pip install dash flask beautifulsoup4
+```
+
+### Scraper gets blocked/rate limited
+**Problem:** Consistent empty results or HTTP 429 errors
+
+**Solution:**
+1. **Reduce scraping rate:** Decrease `user_scraping_limit` and `max_pages` in config
+2. **Add delays:** Insert `time.sleep(1)` between page requests
+3. **Rotate user agents:** Implement user agent rotation in `base_scraper.py`
+4. **Use proxies:** Configure proxy support (not currently implemented)
+
+### Dashboard shows old data
+**Problem:** Dashboard displays cached/outdated results
+
+**Solution:**
+```bash
+# Clear cached CSV files
+rm data/*.csv
+
+# Or refresh the page with cache bypass
+# Chrome/Firefox: Ctrl+Shift+R (Cmd+Shift+R on Mac)
+```
 
 ## 🤝 Contributing
 
