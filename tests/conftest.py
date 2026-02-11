@@ -30,11 +30,8 @@ mock_config.DATA_DIRECTORY = './data'
 mock_config.CSV_SEPARATOR = ','
 sys.modules['config'] = mock_config
 
-# Mock utils
-mock_utils = MagicMock()
-mock_utils.format_filename = lambda x: x.replace(' ', '-').lower()
-mock_utils.format_link_to_markdown = lambda x: f'[link]({x})'
-sys.modules['utils'] = mock_utils
+# DO NOT mock utils - it's internal code we want to test for real
+# (tests in test_utils.py need real implementations)
 
 # Mock log_config
 mock_log_config = MagicMock()
