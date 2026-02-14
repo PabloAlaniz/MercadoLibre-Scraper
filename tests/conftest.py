@@ -16,11 +16,11 @@ sys.modules['flask_socketio'] = mock_socketio
 
 mock_dash = MagicMock()
 sys.modules['dash'] = mock_dash
+sys.modules['dash.dash_table'] = mock_dash
 sys.modules['dash_bootstrap_components'] = mock_dash
 
-# Mock config module with test values
+# Mock config module with test values (only constants now)
 mock_config = MagicMock()
-mock_config.socketio = MagicMock()
 mock_config.SCRAPER_CONFIG = {
     'base_url': 'https://listado.mercadolibre.com.{domain}/',
     'page_increment': 50,
@@ -28,10 +28,15 @@ mock_config.SCRAPER_CONFIG = {
 }
 mock_config.DATA_DIRECTORY = './data'
 mock_config.CSV_SEPARATOR = ','
+mock_config.EXTERNAL_STYLESHEETS = []
+mock_config.SERVER_CONFIG = {"debug": True, "allow_unsafe_werkzeug": True, "port": 5003}
 sys.modules['config'] = mock_config
 
-# DO NOT mock utils - it's internal code we want to test for real
-# (tests in test_utils.py need real implementations)
+# Mock dashboard module to prevent Flask/SocketIO creation during tests
+mock_dashboard = MagicMock()
+mock_dashboard.socketio = MagicMock()
+mock_dashboard.server = MagicMock()
+sys.modules['dashboard'] = mock_dashboard
 
 # Mock log_config
 mock_log_config = MagicMock()

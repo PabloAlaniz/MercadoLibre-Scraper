@@ -2,7 +2,11 @@ import dash_bootstrap_components as dbc
 from dash import html, dash_table
 from dash import dcc
 import plotly.express as px
-from utils import clean_km
+
+
+def _clean_km(km_str):
+    """Clean and parse kilometer values for chart display."""
+    return int(km_str.replace(' km', '').replace('.', ''))
 
 
 def load_index_html():
@@ -57,7 +61,7 @@ def create_scatter_plot(data, x_col, y_col, color_col, labels, title):
         return html.Div("Una o más columnas especificadas no están presentes en los datos.", style={'color': 'red'})
 
     if x_col == 'km':
-        data['km'] = data['km'].apply(clean_km)
+        data['km'] = data['km'].apply(_clean_km)
 
     fig = px.scatter(data, x=x_col, y=y_col, color=color_col,
                      labels=labels, title=title)

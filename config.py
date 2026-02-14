@@ -1,9 +1,9 @@
-from flask import Flask
-from flask_socketio import SocketIO
+"""Application configuration constants.
+
+Flask server and SocketIO are created in dashboard.py, not here.
+"""
 import dash_bootstrap_components as dbc
 
-server = Flask(__name__)
-socketio = SocketIO(server)
 EXTERNAL_STYLESHEETS = [dbc.themes.BOOTSTRAP]
 DATA_DIRECTORY = "data"
 CSV_SEPARATOR = ";"

@@ -1,13 +1,21 @@
-from scrapers.mercadolibre.mercadolibre_scraper import MercadoLibreScraper
+"""Standalone property detail extraction for MercadoLibre."""
 
-class PropertyScraper(MercadoLibreScraper):
 
-    def scrape_specific_details(self, soup):
-        return {
-            'm2': self.extract_m2(soup),
-        }
+def scrape_property_details(soup):
+    """Extract property-specific details from a MercadoLibre product page.
 
-    @staticmethod
-    def extract_m2(soup):
-        m2_element = soup.find('span', string=lambda text: text and "m²" in text)
-        return m2_element.text if m2_element else None
+    Args:
+        soup (BeautifulSoup): Parsed HTML of the product detail page.
+
+    Returns:
+        dict: Dictionary with 'm2' key.
+    """
+    return {
+        'm2': extract_m2(soup),
+    }
+
+
+def extract_m2(soup):
+    """Extract square meters from product page."""
+    m2_element = soup.find('span', string=lambda text: text and "m²" in text)
+    return m2_element.text if m2_element else None

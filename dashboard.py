@@ -1,10 +1,14 @@
+"""Dashboard entry point — creates Flask server and Dash app."""
 import dash
-from config import socketio, server, SERVER_CONFIG, EXTERNAL_STYLESHEETS
+from flask import Flask
+from flask_socketio import SocketIO
+
+from config import SERVER_CONFIG, EXTERNAL_STYLESHEETS
 from ui import load_index_html, create_layout
-from data_manager import DataManager
-from scrapers.mercadolibre.mercadolibre_scraper import MercadoLibreScraper
-from scraper_manager import ScraperManager
 from callbacks import register_callbacks
+
+server = Flask(__name__)
+socketio = SocketIO(server)
 
 
 class Dashboard:
@@ -14,10 +18,10 @@ class Dashboard:
         self.app.index_string = load_index_html()
         self.app.layout = create_layout()
 
-        self.data_manager = DataManager()
-        self.mercado_libre_scraper = MercadoLibreScraper()
-        self.scraper_manager = ScraperManager(self.data_manager, self.mercado_libre_scraper)
-        register_callbacks(self.app, self.scraper_manager, self.data_manager)
+        # Import Container here to avoid circular imports
+        from container import Container
+        self.services = Container.create_for_dashboard()
+        register_callbacks(self.app, self.services)
 
     def run(self):
         socketio.run(server, **SERVER_CONFIG)

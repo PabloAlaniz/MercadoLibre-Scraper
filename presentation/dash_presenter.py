@@ -1,33 +1,37 @@
-from utils import format_price_for_display, format_filename, format_link_to_markdown
-from config import DATA_DIRECTORY, CSV_SEPARATOR
+"""Dash presentation layer — formats scraping data for Dash DataTable display."""
+from __future__ import annotations
+
+from typing import Optional, TYPE_CHECKING
+
+from utils import format_price_for_display, format_link_to_markdown
 import pandas as pd
-import requests
 from log_config import get_logger
 from dash.dash_table import DataTable, FormatTemplate
+
+if TYPE_CHECKING:
+    from domain.ports import ExchangeRatePort
+
 logger = get_logger(__name__)
 
 
-class DataManager:
+class DashPresenter:
 
-    def __init__(self):
+    def __init__(self, exchange_rate_provider: ExchangeRatePort):
         self.df = pd.DataFrame()
+        self.exchange_rate_provider = exchange_rate_provider
 
-    def prepare_table_data(self, data):
+    def prepare_table_data(self, data: list[dict]) -> tuple[list[dict], list[dict]]:
         self.df = pd.DataFrame(data)
         columns = []
         if not self.df.empty:
-            # Convertir precios de USD a pesos o viceversa
-            self.convert_price()  # Asegúrate de llamar a convert_price aquí
+            self.convert_price()
 
-            # Aplica formatos específicos si las columnas existen
             if 'post_link' in self.df.columns:
                 self.df['post_link'] = self.df['post_link'].apply(format_link_to_markdown)
 
-            # Ordena por una columna común o por la primera columna si 'price' no está presente
             sort_column = 'price' if 'price' in self.df.columns else self.df.columns[0]
             sorted_df = self.df.sort_values(by=sort_column, ascending=True)
 
-            # Aplica formatos específicos si las columnas existen
             if 'price' in sorted_df.columns:
                 sorted_df["price"] = sorted_df["price"].apply(format_price_for_display)
 
@@ -39,10 +43,9 @@ class DataManager:
                     {'name': 'Price in Pesos', 'id': 'price_pesos', 'type': 'text'},
                     {"name": "Price in USD", "id": "price_usd", "type": "numeric", "format": money},
                     {'name': 'Link', 'id': 'post_link', 'type': 'text', 'presentation': 'markdown'},
-                    {'name': 'Image', 'id': 'image link', 'type': 'text'}
+                    {'name': 'Image', 'id': 'image_link', 'type': 'text'}
                 ]
 
-                # Convertir el DataFrame a un formato adecuado para Dash DataTable
                 data = sorted_df.to_dict('records')
 
                 logger.info("DATA: ")
@@ -50,26 +53,19 @@ class DataManager:
 
         return data, columns
 
-    def generate_columns(self, data):
+    def generate_columns(self, data: list[dict]) -> list[dict]:
         columns = []
         for key in data[0].keys():
-            if "link" in key.lower():  # Detecta si la clave es un enlace
+            if "link" in key.lower():
                 columns.append({'name': key.capitalize(), 'id': key, 'type': 'text', 'presentation': 'markdown', 'sortable': True})
             else:
                 columns.append({'name': key.capitalize(), 'id': key, 'sortable': True})
         return columns
 
-    def fetch_usd_exchange_rate(self):
-        try:
-            response = requests.get("https://dolarapi.com/v1/dolares/blue")
-            response.raise_for_status()
-            data = response.json()
-            return data['venta']
-        except requests.RequestException as e:
-            logger.error(f"Error al obtener la tasa de cambio USD: {e}")
-            return None
+    def fetch_usd_exchange_rate(self) -> Optional[float]:
+        return self.exchange_rate_provider.get_usd_to_ars_rate()
 
-    def convert_price(self):
+    def convert_price(self) -> None:
         if 'price' not in self.df.columns:
             return
 
@@ -88,7 +84,7 @@ class DataManager:
         self.df['price_usd'] = pd.to_numeric(self.df['price_usd'], errors='coerce')
         logger.info("Conversión de precios completada.")
 
-    def convert_single_price(self, value, exchange_rate):
+    def convert_single_price(self, value: str, exchange_rate: float) -> pd.Series:
         if "U$S" in value:
             number = float(value.replace("U$S", "").replace(".", "").strip())
             converted_value_pesos = number * exchange_rate
@@ -105,17 +101,9 @@ class DataManager:
                 df.drop(columns=[column], inplace=True)
         return df
 
-    def process_and_convert_products(self, products):
-        # Convertir lista de productos en DataFrame
+    def process_and_convert_products(self, products: list[dict]) -> tuple[list[dict], list[dict]]:
         self.df = pd.DataFrame(products)
-
-        # Aplicar conversiones de precio
         self.convert_price()
-
-        # Eliminar columnas con todos los valores None
-        self.df = self.remove_empty_columns(self.df, ['envio', 'cuotas'])
-
-        # Generar columnas para la visualización
+        self.df = self.remove_empty_columns(self.df, ['shipping', 'cuotas'])
         columns = self.generate_columns(self.df.to_dict('records'))
-
         return self.df.to_dict('records'), columns
