@@ -7,7 +7,7 @@ import ui
 logger = get_logger(__name__)
 
 
-def register_callbacks(app, scraper_manager, data_manager):
+def register_callbacks(app, services):
     @app.callback(
         [Output("scrape-message", "children"),
          Output("scrape-message", "is_open"),
@@ -21,9 +21,13 @@ def register_callbacks(app, scraper_manager, data_manager):
     )
     def run_scrape(n_clicks, input_product_name):
         if n_clicks > 0 and input_product_name:
-            data, message = scraper_manager.get_product_list(input_product_name)
+            data = services.search_products.execute('ar', input_product_name, 100)
+            if data:
+                message = f"Scraping para {input_product_name} completado!"
+            else:
+                message = f"No se encontraron datos para {input_product_name}."
             msg_open = True
-            data, columns = data_manager.prepare_table_data(data)
+            data, columns = services.presenter.prepare_table_data(data or [])
             trigger = 'updated'
             json_data = json.dumps(data)
             logger.info(f"Cantidad de datos: {len(data)}")
@@ -45,8 +49,8 @@ def register_callbacks(app, scraper_manager, data_manager):
         if trigger and json_data:
             table_data = json.loads(json_data)
             urls = [extract_url_from_markdown(row['post_link']) for row in table_data]
-            products = scraper_manager.get_products_details_thread(urls)
-            products, columns = data_manager.process_and_convert_products(products)
+            products = services.get_product_details.execute(urls)
+            products, columns = services.presenter.process_and_convert_products(products)
             return products, columns, {'display': 'none'}
         else:
             return [], [], {'display': 'block'}

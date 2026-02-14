@@ -43,37 +43,6 @@ class TestFormatFilename:
         assert result == ""
 
 
-class TestCleanKm:
-    """Tests for clean_km function."""
-    
-    def test_clean_km_basic(self):
-        """Should clean standard km format."""
-        from utils import clean_km
-        
-        result = clean_km("50.000 km")
-        assert result == 50000
-    
-    def test_clean_km_without_separator(self):
-        """Should clean km without thousand separator."""
-        from utils import clean_km
-        
-        result = clean_km("50000 km")
-        assert result == 50000
-    
-    def test_clean_km_mixed_format(self):
-        """Should clean km with multiple dots."""
-        from utils import clean_km
-        
-        result = clean_km("123.456 km")
-        assert result == 123456
-    
-    def test_clean_km_zero(self):
-        """Should handle zero km."""
-        from utils import clean_km
-        
-        result = clean_km("0 km")
-        assert result == 0
-
 
 class TestFormatPriceForDisplay:
     """Tests for format_price_for_display function."""

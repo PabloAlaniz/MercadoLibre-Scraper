@@ -6,11 +6,21 @@ This module provides the main scraping functionality for MercadoLibre across
 automatically detects and routes to specialized scrapers when needed.
 """
 
-from config import socketio, SCRAPER_CONFIG, DATA_DIRECTORY, CSV_SEPARATOR
-from scrapers.base_scraper import Scraper
+import requests
+from bs4 import BeautifulSoup
+
 from utils import format_filename, format_link_to_markdown
+from scrapers.mercadolibre.enums import ProductCategory
+from domain.entities import ProductListing, ProductDetail, CarProductDetail, PropertyProductDetail
 from log_config import get_logger
 logger = get_logger(__name__)
+
+
+DEFAULT_CONFIG = {
+    'base_url': 'https://listado.mercadolibre.com.{domain}/',
+    'page_increment': 50,
+    'max_pages': 100,
+}
 
 
 def detect_category(soup):
@@ -24,37 +34,51 @@ def detect_category(soup):
         str: Category identifier ('car', 'property', or 'others').
     """
     if soup.find('span', class_='ui-pdp-subtitle') and ' km ' in soup.text:
-        return 'car'
+        return ProductCategory.CAR
     elif soup.find('span', string=lambda text: text and "m²" in text):
-        return 'property'
+        return ProductCategory.PROPERTY
     else:
-        return 'others'
+        return ProductCategory.OTHERS
 
 
-class MercadoLibreScraper(Scraper):
+class MercadoLibreScraper:
     """
     Main scraper for MercadoLibre product listings.
 
-    This scraper handles general products and serves as the base for specialized
-    scrapers (cars, real estate). It supports pagination, progress tracking, and
-    multi-country operations.
+    Implements ScraperPort protocol without inheriting from a base class.
 
-    Attributes:
-        data (list): Collected product data.
-        base_url (str): Base URL template for MercadoLibre searches.
-        data_directory (str): Directory for CSV output.
-        csv_separator (str): CSV column separator.
-        page_increment (int): Products per page (default: 50).
-        max_pages (int): Maximum pages to scrape (default: 100).
+    Args:
+        progress_notifier: Optional ProgressNotifierPort implementation.
+        config: Optional dict with 'base_url', 'page_increment', 'max_pages'.
     """
 
-    def __init__(self):
+    def __init__(self, progress_notifier=None, config=None):
         self.data = []
-        self.base_url = SCRAPER_CONFIG['base_url']
-        self.data_directory = DATA_DIRECTORY
-        self.csv_separator = CSV_SEPARATOR
-        self.page_increment = SCRAPER_CONFIG['page_increment']
-        self.max_pages = SCRAPER_CONFIG['max_pages']
+        self.progress_notifier = progress_notifier
+        _cfg = config or DEFAULT_CONFIG
+        self.base_url = _cfg['base_url']
+        self.page_increment = _cfg['page_increment']
+        self.max_pages = _cfg['max_pages']
+
+    def get_page_content(self, url):
+        """Fetch and parse a web page.
+
+        Args:
+            url (str): URL to fetch.
+
+        Returns:
+            BeautifulSoup: Parsed HTML content.
+
+        Raises:
+            Exception: If the HTTP request fails.
+        """
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            return BeautifulSoup(response.text, 'html.parser')
+        except requests.RequestException as e:
+            logger.error(f"Error al obtener la página {url}: {e}")
+            raise Exception(f"Error al obtener la página {url}: {e}")
 
     def format_price(self, price_element):
         """
@@ -78,20 +102,20 @@ class MercadoLibreScraper(Scraper):
             post: BeautifulSoup element representing a product listing.
 
         Returns:
-            dict: Dictionary with 'title', 'price', 'post_link', and 'image link'.
+            dict: Dictionary with 'title', 'price', 'post_link', and 'image_link'.
         """
         title_element = post.find('h2')
         price_value = self.format_price(post.find('span', class_='andes-money-amount__fraction'))
         post_link_element = post.find("a")
         img_element = post.find("img")
 
-        data = {
-            'title': title_element.text if title_element else None,
-            'price': price_value if price_value else None,
-            'post_link': post_link_element['href'] if post_link_element else None,
-            'image link': img_element.get('data-src', img_element.get('src')) if img_element else None
-        }
-        return data
+        listing = ProductListing(
+            title=title_element.text if title_element else None,
+            price=price_value if price_value else None,
+            post_link=post_link_element['href'] if post_link_element else None,
+            image_link=img_element.get('data-src', img_element.get('src')) if img_element else None,
+        )
+        return listing.to_dict()
 
     def get_total_results(self, soup):
         """
@@ -152,112 +176,64 @@ class MercadoLibreScraper(Scraper):
         """
         category = detect_category(soup)
 
-        if category == 'car':
-            from scrapers.mercadolibre.car_scraper import CarScraper
-            scraper = CarScraper()
-        elif category == 'property':
-            from scrapers.mercadolibre.property_scraper import PropertyScraper
-            scraper = PropertyScraper()
+        base_kwargs = dict(
+            title=self.extract_title(soup),
+            price=self.extract_price(soup),
+            publication_date=self.extract_publication_date(soup),
+            author=self.extract_author(soup),
+            link=self.extract_link(soup),
+            shipping=self.extract_shipping(soup),
+            category=category,
+        )
+
+        if category == ProductCategory.CAR:
+            from scrapers.mercadolibre.car_scraper import scrape_car_details
+            specific_data = scrape_car_details(soup)
+            detail = CarProductDetail(
+                **base_kwargs,
+                year=specific_data.get('year'),
+                km=specific_data.get('km'),
+            )
+        elif category == ProductCategory.PROPERTY:
+            from scrapers.mercadolibre.property_scraper import scrape_property_details
+            specific_data = scrape_property_details(soup)
+            detail = PropertyProductDetail(
+                **base_kwargs,
+                m2=specific_data.get('m2'),
+            )
         else:
-            scraper = MercadoLibreScraper()
+            detail = ProductDetail(**base_kwargs)
 
-        base_data = {
-            'title': self.extract_title(soup),
-            'price': self.extract_price(soup),
-            'publication_date': self.extract_publication_date(soup),
-            'author': self.extract_author(soup),
-            'link': self.extract_link(soup),
-            'envio': self.extract_envio(soup),
-        }
-
-        specific_data = scraper.scrape_specific_details(soup)
-        base_data.update(specific_data)
-
-        return base_data
-
-    def scrape_specific_details(self, soup):
-        """
-        Extract category-specific details from the product page.
-
-        This method is overridden by specialized scrapers (CarScraper,
-        PropertyScraper) to extract category-specific fields.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            dict: Empty dict for base scraper; category-specific data in subclasses.
-        """
-        return {}
+        return detail.to_dict()
 
     @staticmethod
     def extract_title(soup):
-        """
-        Extract product title from detail page.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            str or None: Product title, or None if not found.
-        """
+        """Extract product title from detail page."""
         title = soup.find('h1', class_='ui-pdp-title')
         return title.text if title else None
 
     @staticmethod
     def extract_price(soup):
-        """
-        Extract formatted price (currency symbol + amount) from detail page.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            str or None: Formatted price (e.g., "$ 150000"), or None if not found.
-        """
+        """Extract formatted price (currency symbol + amount) from detail page."""
         price_simbol = soup.find('span', class_='andes-money-amount__currency-symbol')
         price = soup.find('span', class_='andes-money-amount__fraction')
         return f"{price_simbol.text} {price.text}" if price_simbol and price else None
 
     @staticmethod
     def extract_author(soup):
-        """
-        Extract seller/author information from detail page.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            str or None: Seller name/info, or None if not found.
-        """
+        """Extract seller/author information from detail page."""
         author = soup.find('div', class_='ui-pdp-seller-validated')
         return author.text if author else None
 
     @staticmethod
     def extract_link(soup):
-        """
-        Extract canonical product URL from detail page.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            str or None: Markdown-formatted link, or None if not found.
-        """
+        """Extract canonical product URL from detail page."""
         link = soup.find('link', rel='canonical')
         return format_link_to_markdown(link['href']) if link else None
 
     @staticmethod
     def extract_publication_date(soup):
-        """
-        Extract publication date from product detail page.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            str or None: Publication date text, or None if not found.
-        """
+        """Extract publication date from product detail page."""
         subtitle_element = soup.find('span', class_='ui-pdp-subtitle')
         if subtitle_element:
             parts = subtitle_element.text.split('·')
@@ -266,25 +242,14 @@ class MercadoLibreScraper(Scraper):
         return None
 
     @staticmethod
-    def extract_envio(soup):
-        """
-        Extract shipping/delivery information from detail page.
-
-        Args:
-            soup (BeautifulSoup): Parsed HTML of the product detail page.
-
-        Returns:
-            str or None: Shipping info (e.g., "Llega mañana"), or None if not found.
-        """
-        envio_element = soup.find('span', string=lambda text: text and "Llega" in text)
-        return envio_element.text if envio_element else None
+    def extract_shipping(soup):
+        """Extract shipping/delivery information from detail page."""
+        shipping_element = soup.find('span', string=lambda text: text and "Llega" in text)
+        return shipping_element.text if shipping_element else None
 
     def scrape_product_list(self, domain, product_name, user_scraping_limit):
         """
         Scrape multiple pages of product listings for a search query.
-
-        This is the main entry point for scraping. It handles pagination,
-        respects user-defined limits, and emits progress updates via WebSocket.
 
         Args:
             domain (str): Country domain code (e.g., 'ar', 'mx', 'br').
@@ -293,12 +258,6 @@ class MercadoLibreScraper(Scraper):
 
         Returns:
             list: List of dictionaries, each containing product data from listings.
-
-        Example:
-            >>> scraper = MercadoLibreScraper()
-            >>> products = scraper.scrape_product_list('ar', 'notebook gamer', 50)
-            >>> len(products)
-            50
         """
         cleaned_name = format_filename(product_name)
         base_url = self.base_url.format(domain=domain)
@@ -328,6 +287,7 @@ class MercadoLibreScraper(Scraper):
             all_data.extend(scraped_page_data)
             logger.info(f"Scraping de página {i + 1} de {estimated_total_pages} completado")
 
-            socketio.emit('scrape_status', {'progress': i, 'total': estimated_total_pages})
+            if self.progress_notifier:
+                self.progress_notifier.notify_progress(i, estimated_total_pages)
 
         return all_data
