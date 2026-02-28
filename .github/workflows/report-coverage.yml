@@ -1,0 +1,62 @@
+name: Report coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: pytest --cov=. --cov-report=json --cov-report=term -q --cov-fail-under=0
+        continue-on-error: true
+
+      - name: Report coverage to dashboard
+        if: github.ref == 'refs/heads/main'
+        env:
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          TOKEN: ${{ secrets.COVERAGE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          COVERAGE_JSON="coverage.json"
+
+          if [[ -z "${DASHBOARD_URL:-}" ]]; then
+            echo "::error::Missing secrets.DASHBOARD_URL"
+            exit 1
+          fi
+          if [[ -z "${TOKEN:-}" ]]; then
+            echo "::error::Missing secrets.COVERAGE_API_TOKEN"
+            exit 1
+          fi
+          if [[ ! -f "$COVERAGE_JSON" ]]; then
+            echo "::error::Coverage file not found: $COVERAGE_JSON"
+            exit 1
+          fi
+
+          COVERAGE=$(jq -r '.totals.percent_covered // empty' "$COVERAGE_JSON" | xargs printf '%.0f')
+          echo "Line coverage: ${COVERAGE}%"
+
+          curl -sS --fail-with-body -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            "${DASHBOARD_URL}/api/repos/${{ github.repository }}/coverage" \
+            -d "{\"coverage\": $COVERAGE, \"commit_sha\": \"${{ github.sha }}\"}"
